@@ -3,15 +3,66 @@ exports.handler = async function(event, context) {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  const { bio, themes } = JSON.parse(event.body || '{}');
+  const body = JSON.parse(event.body || '{}');
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
+  }
+
+  // PDF text extraction mode
+  if (body.extractPdf && body.pdfBase64) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: 'document',
+                source: {
+                  type: 'base64',
+                  media_type: 'application/pdf',
+                  data: body.pdfBase64
+                }
+              },
+              {
+                type: 'text',
+                text: 'Extract the key professional information from this resume/CV. Return only the key facts as bullet points: name, current title, current company, years of experience, key achievements, education, and any notable awards or recognition. Keep it concise.'
+              }
+            ]
+          }]
+        })
+      });
+
+      const data = await response.json();
+      const text = data.content?.[0]?.text || '';
+      return {
+        statusCode: 200,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      };
+    } catch (err) {
+      return {
+        statusCode: 500,
+        body: JSON.stringify({ error: err.message })
+      };
+    }
+  }
+
+  // Blurb generation mode
+  const { bio, themes } = body;
 
   if (!bio) {
     return { statusCode: 400, body: JSON.stringify({ error: 'No bio provided' }) };
-  }
-
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    return { statusCode: 500, body: JSON.stringify({ error: 'API key not configured' }) };
   }
 
   const themeContext = themes
@@ -19,7 +70,7 @@ exports.handler = async function(event, context) {
     : '';
 
   try {
-    // Step 1: Extract speaker details (name, gender, title, company)
+    // Step 1: Extract speaker details
     const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -53,11 +104,9 @@ Bio: ${bio}`
     try {
       const cleaned = extractText.replace(/```json|```/g, '').trim();
       speakerInfo = JSON.parse(cleaned);
-    } catch (e) {
-      // continue with defaults if parsing fails
-    }
+    } catch (e) {}
 
-    // Step 2: Generate blurbs using verified speaker info
+    // Step 2: Generate blurbs
     const systemPrompt = `You are a sharp marketing copywriter for Medra, a leading Physical AI company for life sciences. You write promotional copy for UNLOCK 2027 — Medra's annual flagship conference focused on Physical AI for life sciences. ${themeContext}
 
 The speaker's verified details are:
@@ -96,7 +145,7 @@ Return ONLY the JSON object, nothing else.`;
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1000,
         system: systemPrompt,
-        messages: [{ role: 'user', content: `Generate speaker blurbs for UNLOCK 2027 based on this professional background:\n\n${bio}` }]
+        messages: [{ role: 'user', content: `Generate speaker blurbs for UNLOCK 2027:\n\n${bio}` }]
       })
     });
 
