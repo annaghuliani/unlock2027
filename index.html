@@ -973,6 +973,11 @@ async function generate() {
     document.getElementById('results-divider').style.display = 'block';
     document.getElementById('results').classList.add('visible');
 
+    // Auto scroll to results
+    setTimeout(() => {
+      document.getElementById('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
+
   } catch (err) {
     showError('Error: ' + (err.message || 'Something went wrong. Please try again.'));
   } finally {
