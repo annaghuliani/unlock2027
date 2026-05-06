@@ -777,34 +777,35 @@ function handleResume(e) {
   if (!file) return;
 
   const badge = document.getElementById('resume-badge');
-  const filename = document.getElementById('resume-filename');
-  filename.textContent = file.name;
+  const filenameEl = document.getElementById('resume-filename');
+  const bioInput = document.getElementById('bio-input');
+
+  if (!badge || !filenameEl || !bioInput) return;
+
+  filenameEl.textContent = file.name;
   badge.style.display = 'flex';
 
   const reader = new FileReader();
 
   if (file.type === 'application/pdf') {
     reader.onload = function(ev) {
-      // For PDFs, use basic text extraction from ArrayBuffer
       const typedArray = new Uint8Array(ev.target.result);
       let text = '';
       for (let i = 0; i < typedArray.length; i++) {
         const char = String.fromCharCode(typedArray[i]);
         if (char.match(/[\x20-\x7E\n\r\t]/)) text += char;
       }
-      // Clean up extracted text
       text = text.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s{3,}/g, '\n').trim();
       if (text.length > 100) {
-        document.getElementById('bio-input').value = text.substring(0, 3000);
+        bioInput.value = text.substring(0, 3000);
       } else {
-        document.getElementById('bio-input').value = `[Resume uploaded: ${file.name} — please add key details manually if text extraction failed]`;
+        bioInput.value = `Resume uploaded: ${file.name} — text could not be extracted automatically. Please paste the key details manually.`;
       }
     };
     reader.readAsArrayBuffer(file);
   } else {
-    // TXT, DOC files — read as text
     reader.onload = function(ev) {
-      document.getElementById('bio-input').value = ev.target.result.substring(0, 3000);
+      bioInput.value = (ev.target.result || '').substring(0, 3000);
     };
     reader.readAsText(file);
   }
