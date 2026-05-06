@@ -18,11 +18,58 @@ exports.handler = async function(event, context) {
     ? `The key themes of UNLOCK 2027 this year are: ${themes}. Weave these themes naturally into the blurbs where relevant.`
     : '';
 
-  const systemPrompt = `You are a sharp marketing copywriter for Medra, a leading Physical AI company for life sciences. You write promotional copy for UNLOCK 2027 — Medra's annual flagship conference focused on Physical AI for life sciences. ${themeContext}
+  try {
+    // Step 1: Extract speaker details (name, gender, title, company)
+    const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 300,
+        messages: [{
+          role: 'user',
+          content: `Extract the following from this professional bio and return ONLY a JSON object with no extra text:
+{
+  "name": "full name",
+  "pronouns": "he/him OR she/her OR they/them",
+  "title": "current job title",
+  "company": "current company",
+  "key_achievement": "their single most impressive achievement in one sentence"
+}
 
-Generate exactly two promotional blurbs for the speaker described by the user.
+Bio: ${bio}`
+        }]
+      })
+    });
 
-Format your response as valid JSON like this:
+    const extractData = await extractResponse.json();
+    const extractText = extractData.content?.[0]?.text || '';
+
+    let speakerInfo = { name: '', pronouns: 'they/them', title: '', company: '', key_achievement: '' };
+    try {
+      const cleaned = extractText.replace(/```json|```/g, '').trim();
+      speakerInfo = JSON.parse(cleaned);
+    } catch (e) {
+      // continue with defaults if parsing fails
+    }
+
+    // Step 2: Generate blurbs using verified speaker info
+    const systemPrompt = `You are a sharp marketing copywriter for Medra, a leading Physical AI company for life sciences. You write promotional copy for UNLOCK 2027 — Medra's annual flagship conference focused on Physical AI for life sciences. ${themeContext}
+
+The speaker's verified details are:
+- Name: ${speakerInfo.name}
+- Pronouns: ${speakerInfo.pronouns}
+- Title: ${speakerInfo.title}
+- Company: ${speakerInfo.company}
+- Key achievement: ${speakerInfo.key_achievement}
+
+IMPORTANT: Use the correct pronouns (${speakerInfo.pronouns}) consistently throughout both blurbs. Never mix up gender pronouns.
+
+Generate exactly two promotional blurbs and return ONLY a valid JSON object:
 {"x": "the X/Twitter blurb here", "linkedin": "the LinkedIn blurb here"}
 
 X blurb rules:
@@ -32,12 +79,12 @@ X blurb rules:
 
 LinkedIn blurb rules:
 - 3-5 sentences, professional, third-person
+- Use correct pronouns throughout
 - Reference UNLOCK 2027 and Medra's annual conference on Physical AI for life sciences
 - End with an invitation to join
 
 Return ONLY the JSON object, nothing else.`;
 
-  try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -63,18 +110,16 @@ Return ONLY the JSON object, nothing else.`;
     }
 
     const fullText = data.content?.[0]?.text || '';
-    
-    // Parse JSON response
+
     let xBlurb = '';
     let linkedinBlurb = '';
-    
+
     try {
       const cleaned = fullText.replace(/```json|```/g, '').trim();
       const parsed = JSON.parse(cleaned);
       xBlurb = parsed.x || '';
       linkedinBlurb = parsed.linkedin || '';
     } catch (e) {
-      // fallback: split on newlines
       const lines = fullText.split('\n\n');
       xBlurb = lines[0]?.trim() || fullText;
       linkedinBlurb = lines[1]?.trim() || fullText;
@@ -83,7 +128,11 @@ Return ONLY the JSON object, nothing else.`;
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ x: xBlurb, linkedin: linkedinBlurb })
+      body: JSON.stringify({
+        x: xBlurb,
+        linkedin: linkedinBlurb,
+        speaker: speakerInfo
+      })
     };
   } catch (err) {
     return {
