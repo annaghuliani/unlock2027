@@ -18,30 +18,24 @@ exports.handler = async function(event, context) {
     ? `The key themes of UNLOCK 2027 this year are: ${themes}. Weave these themes naturally into the blurbs where relevant.`
     : '';
 
-  const systemPrompt = `You are a sharp marketing copywriter for Medra, a leading Physical AI company for life sciences. You write promotional copy for UNLOCK 2027 — Medra's annual flagship conference focused on Physical AI for life sciences (robotics, automation, AI-driven lab and surgical systems). ${themeContext}
+  const systemPrompt = `You are a sharp marketing copywriter for Medra, a leading Physical AI company for life sciences. You write promotional copy for UNLOCK 2027 — Medra's annual flagship conference focused on Physical AI for life sciences. ${themeContext}
 
-When given a speaker's professional background, you produce exactly two blurbs separated by the delimiter "---LINKEDIN---":
+Generate exactly two promotional blurbs for the speaker described by the user.
 
-BLURB 1 — X (Twitter):
-- Must be under 280 characters including spaces, line breaks, and hashtags
-- Hook-first: open with a compelling statement or question, not the speaker's name
-- Short punchy lines, use line breaks naturally
-- End with 1-2 relevant hashtags like #PhysicalAI #LifeSciences #UNLOCK2027
-- Conversational but credible — reads like a real person posted it, not a press release
-- Reference UNLOCK 2027 clearly
+Format your response as valid JSON like this:
+{"x": "the X/Twitter blurb here", "linkedin": "the LinkedIn blurb here"}
 
-BLURB 2 — LinkedIn:
-- 3–5 sentences, professional but warm and excited, third-person
-- Lead with their most impressive credential or achievement
-- Include a specific tie to Physical AI or life sciences
-- Reference "UNLOCK 2027" and "Medra's annual conference on Physical AI for life sciences"
-- End with an invitation: "Join us at UNLOCK 2027" or similar
-- No hashtags
+X blurb rules:
+- Under 280 characters
+- Hook-first, punchy, 1-2 hashtags like #PhysicalAI #UNLOCK2027
+- Reference UNLOCK 2027
 
-Output format — respond with ONLY the two blurbs separated by exactly this delimiter on its own line:
----LINKEDIN---
+LinkedIn blurb rules:
+- 3-5 sentences, professional, third-person
+- Reference UNLOCK 2027 and Medra's annual conference on Physical AI for life sciences
+- End with an invitation to join
 
-Nothing else. No preamble, no explanation, no labels.`;
+Return ONLY the JSON object, nothing else.`;
 
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -69,15 +63,27 @@ Nothing else. No preamble, no explanation, no labels.`;
     }
 
     const fullText = data.content?.[0]?.text || '';
-    const parts = fullText.split('---LINKEDIN---');
+    
+    // Parse JSON response
+    let xBlurb = '';
+    let linkedinBlurb = '';
+    
+    try {
+      const cleaned = fullText.replace(/```json|```/g, '').trim();
+      const parsed = JSON.parse(cleaned);
+      xBlurb = parsed.x || '';
+      linkedinBlurb = parsed.linkedin || '';
+    } catch (e) {
+      // fallback: split on newlines
+      const lines = fullText.split('\n\n');
+      xBlurb = lines[0]?.trim() || fullText;
+      linkedinBlurb = lines[1]?.trim() || fullText;
+    }
 
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        x: parts[0]?.trim() || '',
-        linkedin: parts[1]?.trim() || ''
-      })
+      body: JSON.stringify({ x: xBlurb, linkedin: linkedinBlurb })
     };
   } catch (err) {
     return {
