@@ -650,7 +650,7 @@ textarea { min-height: 190px; resize: vertical; }
   <div class="form-grid">
     <div>
       <div class="field-label">Photo <span class="opt">(optional)</span></div>
-      <div class="photo-upload" onclick="document.getElementById('photo-input').click()">
+      <div class="photo-upload" id="photo-upload-box" onclick="document.getElementById('photo-input').click()">
         <input type="file" id="photo-input" accept="image/*" onchange="handlePhoto(event)" onclick="event.stopPropagation()">
         <img id="photo-preview" alt="Speaker photo">
         <div class="photo-placeholder" id="photo-placeholder">
@@ -661,6 +661,7 @@ textarea { min-height: 190px; resize: vertical; }
           <span>JPG, PNG, WEBP</span>
         </div>
       </div>
+      <button id="remove-photo-btn" onclick="removePhoto()" style="display:none;margin-top:8px;width:100%;padding:6px;background:rgba(255,80,80,0.08);border:1px solid rgba(255,80,80,0.2);border-radius:6px;color:#ff8080;font-size:12px;cursor:pointer;font-family:var(--font-sans)">× Remove photo</button>
     </div>
     <div>
       <div class="field-label">Speaker Background
@@ -788,21 +789,27 @@ function handleResume(e) {
   const reader = new FileReader();
 
   if (file.type === 'application/pdf') {
-    reader.onload = function(ev) {
-      const typedArray = new Uint8Array(ev.target.result);
-      let text = '';
-      for (let i = 0; i < typedArray.length; i++) {
-        const char = String.fromCharCode(typedArray[i]);
-        if (char.match(/[\x20-\x7E\n\r\t]/)) text += char;
-      }
-      text = text.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s{3,}/g, '\n').trim();
-      if (text.length > 100) {
-        bioInput.value = text.substring(0, 3000);
-      } else {
-        bioInput.value = `Resume uploaded: ${file.name} — text could not be extracted automatically. Please paste the key details manually.`;
+    // Send PDF as base64 to a Claude-powered extraction
+    reader.onload = async function(ev) {
+      const base64 = ev.target.result.split(',')[1];
+      bioInput.value = 'Extracting text from PDF...';
+      bioInput.disabled = true;
+
+      try {
+        const res = await fetch('/.netlify/functions/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extractPdf: true, pdfBase64: base64 })
+        });
+        const data = await res.json();
+        bioInput.value = data.text || 'Could not extract text — please paste details manually.';
+      } catch (err) {
+        bioInput.value = 'Could not extract text — please paste details manually.';
+      } finally {
+        bioInput.disabled = false;
       }
     };
-    reader.readAsArrayBuffer(file);
+    reader.readAsDataURL(file);
   } else {
     reader.onload = function(ev) {
       bioInput.value = (ev.target.result || '').substring(0, 3000);
@@ -817,6 +824,18 @@ function clearResume() {
   document.getElementById('bio-input').value = '';
 }
 
+function removePhoto() {
+  photoDataUrl = null;
+  const img = document.getElementById('photo-preview');
+  img.src = '';
+  img.classList.remove('visible');
+  document.getElementById('photo-placeholder').style.display = '';
+  document.getElementById('photo-input').value = '';
+  document.getElementById('remove-photo-btn').style.display = 'none';
+  document.getElementById('speaker-photo-preview').src = '';
+  document.getElementById('speaker-card').classList.remove('visible');
+}
+
 function handlePhoto(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -828,6 +847,7 @@ function handlePhoto(e) {
     img.classList.add('visible');
     document.getElementById('photo-placeholder').style.display = 'none';
     document.getElementById('speaker-photo-preview').src = photoDataUrl;
+    document.getElementById('remove-photo-btn').style.display = 'block';
   };
   reader.readAsDataURL(file);
 }
