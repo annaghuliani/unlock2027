@@ -66,7 +66,7 @@ exports.handler = async function(event, context) {
   }
 
   const themeContext = themes
-    ? `The key themes of UNLOCK 2027 this year are: ${themes}. Weave these themes naturally into the blurbs where relevant.`
+    ? `When writing the blurbs, emphasise these specific aspects of the speaker's background: ${themes}. Weave them naturally into both blurbs.`
     : '';
 
   try {
