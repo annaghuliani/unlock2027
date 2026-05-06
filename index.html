@@ -892,21 +892,27 @@ async function generate() {
     updateCharCount('x-blurb', 'x-chars', 280);
     updateCharCount('li-blurb', 'li-chars', null);
 
-    // Show extracted profile in speaker card
-    const profile = data.profile || {};
+    const profile = data.speaker || {};
     const name = profile.name || extractName(bio);
     const title = profile.title || '';
     const company = profile.company || '';
-    const pronouns = profile.pronouns || '';
 
     document.getElementById('speaker-name-preview').textContent = name;
-    const speakerSubtitle = [title, company].filter(Boolean).join(' · ');
-    document.getElementById('speaker-subtitle').textContent = speakerSubtitle || 'UNLOCK 2027 — Physical AI for Life Sciences';
-    if (pronouns) {
-      document.getElementById('speaker-pronouns').textContent = pronouns;
-      document.getElementById('speaker-pronouns').style.display = 'inline-flex';
+
+    const subtitleEl = document.getElementById('speaker-subtitle');
+    if (subtitleEl) {
+      const speakerSubtitle = [title, company].filter(Boolean).join(' · ');
+      subtitleEl.textContent = speakerSubtitle || 'UNLOCK 2027 — Physical AI for Life Sciences';
     }
-    document.getElementById('speaker-card').classList.add('visible');
+
+    const pronounsEl = document.getElementById('speaker-pronouns');
+    if (pronounsEl && profile.pronouns) {
+      pronounsEl.textContent = profile.pronouns;
+      pronounsEl.style.display = 'inline-flex';
+    }
+
+    if (photoDataUrl) document.getElementById('speaker-card').classList.add('visible');
+    else document.getElementById('speaker-card').classList.add('visible');
 
     document.getElementById('results-divider').style.display = 'block';
     document.getElementById('results').classList.add('visible');
