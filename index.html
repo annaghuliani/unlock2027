@@ -792,8 +792,15 @@ function handleResume(e) {
     // Send PDF as base64 to a Claude-powered extraction
     reader.onload = async function(ev) {
       const base64 = ev.target.result.split(',')[1];
-      bioInput.value = 'Extracting text from PDF...';
+      bioInput.value = '';
       bioInput.disabled = true;
+      bioInput.placeholder = '⏳ Reading your resume...';
+
+      // Disable generate button during extraction
+      const generateBtn = document.getElementById('generate-btn');
+      generateBtn.disabled = true;
+      generateBtn.querySelector('.btn-text').textContent = 'Reading resume…';
+      document.getElementById('spinner').style.display = 'block';
 
       try {
         const res = await fetch('/.netlify/functions/generate', {
@@ -803,10 +810,21 @@ function handleResume(e) {
         });
         const data = await res.json();
         bioInput.value = data.text || 'Could not extract text — please paste details manually.';
+        bioInput.placeholder = '';
+
+        // Show success indicator
+        filenameEl.textContent = '✓ ' + file.name + ' — ready!';
+        badge.style.borderColor = 'rgba(52,211,153,0.4)';
+        badge.style.color = '#34d399';
+
       } catch (err) {
         bioInput.value = 'Could not extract text — please paste details manually.';
+        bioInput.placeholder = '';
       } finally {
         bioInput.disabled = false;
+        generateBtn.disabled = false;
+        generateBtn.querySelector('.btn-text').textContent = 'Generate blurbs';
+        document.getElementById('spinner').style.display = 'none';
       }
     };
     reader.readAsDataURL(file);
