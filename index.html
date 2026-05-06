@@ -663,10 +663,25 @@ textarea { min-height: 190px; resize: vertical; }
       </div>
     </div>
     <div>
-      <div class="field-label">Speaker Background</div>
-      <textarea id="bio-input" placeholder="Paste the speaker's LinkedIn bio, CV summary, or professional background here…
+      <div class="field-label">Speaker Background
+        <span class="opt">— or <label for="resume-input" style="color:var(--accent);cursor:pointer;text-decoration:underline;text-underline-offset:3px">upload a resume</label></span>
+      </div>
+      <input type="file" id="resume-input" accept=".pdf,.doc,.docx,.txt" style="display:none" onchange="handleResume(event)">
+      <div id="resume-badge" style="display:none;margin-bottom:8px;display:none;align-items:center;gap:8px;font-size:12px;color:var(--accent);background:rgba(91,159,255,0.08);border:1px solid rgba(91,159,255,0.2);border-radius:6px;padding:8px 12px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <span id="resume-filename">resume.pdf</span>
+        <button onclick="clearResume()" style="margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px">×</button>
+      </div>
+      <textarea id="bio-input" placeholder="Paste any background info — bullet points, rough notes, or a LinkedIn snippet all work fine!
 
-Example: Dr. Sarah Chen is Chief Scientific Officer at BioMerge Technologies, leading a team of 80 developing next-generation robotic surgery platforms. Previously 12 years at Intuitive Surgical…"></textarea>
+Example:
+• Dr Sarah Chen, CSO at BioMerge Technologies
+• 12 yrs at Intuitive Surgical before this
+• leads team of 80 ppl
+• works on robotic surgery + AI
+• Rita Allen Foundation Scholar
+• Chan Zuckerberg Biohub investigator
+• focused on antibody research + emerging viruses"></textarea>
     </div>
   </div>
 
@@ -757,6 +772,50 @@ Example: Dr. Sarah Chen is Chief Scientific Officer at BioMerge Technologies, le
 <script>
 let photoDataUrl = null;
 
+function handleResume(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const badge = document.getElementById('resume-badge');
+  const filename = document.getElementById('resume-filename');
+  filename.textContent = file.name;
+  badge.style.display = 'flex';
+
+  const reader = new FileReader();
+
+  if (file.type === 'application/pdf') {
+    reader.onload = function(ev) {
+      // For PDFs, use basic text extraction from ArrayBuffer
+      const typedArray = new Uint8Array(ev.target.result);
+      let text = '';
+      for (let i = 0; i < typedArray.length; i++) {
+        const char = String.fromCharCode(typedArray[i]);
+        if (char.match(/[\x20-\x7E\n\r\t]/)) text += char;
+      }
+      // Clean up extracted text
+      text = text.replace(/[^\x20-\x7E\n]/g, ' ').replace(/\s{3,}/g, '\n').trim();
+      if (text.length > 100) {
+        document.getElementById('bio-input').value = text.substring(0, 3000);
+      } else {
+        document.getElementById('bio-input').value = `[Resume uploaded: ${file.name} — please add key details manually if text extraction failed]`;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // TXT, DOC files — read as text
+    reader.onload = function(ev) {
+      document.getElementById('bio-input').value = ev.target.result.substring(0, 3000);
+    };
+    reader.readAsText(file);
+  }
+}
+
+function clearResume() {
+  document.getElementById('resume-input').value = '';
+  document.getElementById('resume-badge').style.display = 'none';
+  document.getElementById('bio-input').value = '';
+}
+
 function handlePhoto(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -832,9 +891,21 @@ async function generate() {
     updateCharCount('x-blurb', 'x-chars', 280);
     updateCharCount('li-blurb', 'li-chars', null);
 
-    const name = extractName(bio);
+    // Show extracted profile in speaker card
+    const profile = data.profile || {};
+    const name = profile.name || extractName(bio);
+    const title = profile.title || '';
+    const company = profile.company || '';
+    const pronouns = profile.pronouns || '';
+
     document.getElementById('speaker-name-preview').textContent = name;
-    if (photoDataUrl) document.getElementById('speaker-card').classList.add('visible');
+    const speakerSubtitle = [title, company].filter(Boolean).join(' · ');
+    document.getElementById('speaker-subtitle').textContent = speakerSubtitle || 'UNLOCK 2027 — Physical AI for Life Sciences';
+    if (pronouns) {
+      document.getElementById('speaker-pronouns').textContent = pronouns;
+      document.getElementById('speaker-pronouns').style.display = 'inline-flex';
+    }
+    document.getElementById('speaker-card').classList.add('visible');
 
     document.getElementById('results-divider').style.display = 'block';
     document.getElementById('results').classList.add('visible');
